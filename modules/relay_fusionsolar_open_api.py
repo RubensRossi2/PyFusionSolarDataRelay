@@ -36,9 +36,26 @@ class RelayFusionSolarOpenApi:
     def process_fusionsolar_open_apis(self):
         self.process_fusionsolar_openapi_inverters()
         self.process_fusionsolar_openapi_grid_meters()
-
+        self.process_fusionsolar_openapi_battery()
         self.logger.info("Waiting for next FusionSolar interval...")
 
+    def process_fusionsolar_openapi_battery(self):
+        try:
+            self.logger.info(f"Processing fusionsolar OpenAPI battery...")
+            battery_measurements = self.fs_open_api.fetch_fusionsolar_battery_device_kpis()
+            
+            for battery_measurement in battery_measurements:
+                if not (battery_measurement.settings is not None and battery_measurement.settings.enabled == False):
+                    self.write_battery_data_to_influxdb(battery_measurement)
+                    self.publish_pvdata_to_mqtt(battery_measurement)
+                    self.write_pvdata_to_pvoutput(battery_measurement)
+                else:
+                    self.logger.info(f"Skipping disabled fusionsolar open_api {battery_measurement.settings_descriptive_name}, with dev_id {battery_measurement.settings_device_id}...")
+
+        except Exception as e:
+            self.logger.exception(f"Exception while processing fusionsolar open_api battery:\n{e}")
+
+    # self.fs_open_api.fetch_fusionsolar_battery_device_kpis()
     def process_fusionsolar_openapi_inverters(self):
         try:
             self.logger.info(f"Processing fusionsolar OpenAPI inverters...")
@@ -129,6 +146,20 @@ class RelayFusionSolarOpenApi:
                 # Log but do not raise, other outputs should proceed.
                 self.logger.exception(
                     f"Error publishing grid meter data to InfluxDB for fusionsolar open_api [{meter_measurement.settings_descriptive_name}] with dev_id [{meter_measurement.settings_device_id}]: {e}"
+                )
+        else:
+            self.logger.debug(f"Skipping publishing to InfluxDB, module disabled, or InfluxDB output disabled in fusionsolar open_api config.")
+
+    def write_battery_data_to_influxdb(self, battery_measurement: FusionSolarMeterMeasurement):
+        if self.conf.influxdb_module_enabled and (
+            (battery_measurement.settings is not None and battery_measurement.settings.output_influxdb) or self.conf.fusionsolar_open_api_influxdb_for_discovered_dev
+        ):
+            try:
+                self.influxdb.write_battery_data_to_influxdb(battery_measurement)
+            except Exception as e:
+                # Log but do not raise, other outputs should proceed.
+                self.logger.exception(
+                    f"Error publishing grid meter data to InfluxDB for fusionsolar open_api [{battery_measurement.settings_descriptive_name}] with dev_id [{battery_measurement.settings_device_id}]: {e}"
                 )
         else:
             self.logger.debug(f"Skipping publishing to InfluxDB, module disabled, or InfluxDB output disabled in fusionsolar open_api config.")

@@ -135,3 +135,53 @@ class FusionSolarMeterMeasurement:
         if self.settings is not None:
             return self.settings.dev_id
         return ""
+
+class FusionSolarBatteryMeasurement:
+    def __init__(
+        self,
+        settings: FusionSolarOpenApiMeterSettings = None,
+        measurement_type: str = "",
+        data_source: str = "",
+        station_name: str = "",
+        station_dn: str = "",
+        device_dn: str = "",
+        device_name: str = "",
+        device_model: str = "",
+        device_id: str = "",
+        battery_soc: float = 0.0,
+        ch_discharge_power: float = 0.0,
+    ):
+        self.settings = settings
+        self.measurement_type = measurement_type
+        self.station_name = station_name
+        self.station_dn = station_dn
+        self.device_dn = device_dn
+        self.device_name = device_name
+        self.device_model = device_model
+        self.device_id = device_id
+        self.data_source = data_source
+        self.battery_soc = battery_soc
+        self.ch_discharge_power = ch_discharge_power
+
+    settings: FusionSolarOpenApiInverterSettings
+    measurement_type: str
+    station_name: str
+    station_dn: str
+    device_dn: str
+    device_name: str
+    device_model: str
+    device_id: str
+    data_source: str
+    soh: float
+
+    @property
+    def settings_descriptive_name(self) -> str:
+        if self.settings is not None:
+            return self.settings.descriptive_name
+        return ""
+
+    @property
+    def settings_device_id(self) -> str:
+        if self.settings is not None:
+            return self.settings.dev_id
+        return ""

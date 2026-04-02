@@ -67,6 +67,84 @@ class FetchFusionSolarOpenApi:
             )
 
     @rate_limit(max_calls=1, period=60)
+    def fetch_fusionsolar_battery_device_kpis(self) -> List[FusionSolarBatteryMeasurement]:
+        """
+        Retrieve real-time KPIs from the FusionSolar OpenAPI.
+        Uses rate limiting to avoid frequent calls.
+
+        :return: A list of FusionSolarBatteryKpi objects containing battery metrics.
+        """
+        self.logger.info(f"Requesting battery realtimeKpi's from FusionSolarOpenAPI.")
+
+        # Ensure the device list is populated
+        if not self.device_list:
+            self.update_device_list()
+
+        url = f"{self.conf.fusionsolar_open_api_url}/thirdData/getDevRealKpi"
+        devices_str = ",".join(str(item["id"]) for item in self.device_list if "id" in item and "devTypeId" in item and item["devTypeId"] == 39)
+        data = {"devTypeId": 39, "devIds": devices_str}
+
+        response_json = self._fetch_fusionsolar_data_request(url, data)
+        api_measurement_list = response_json.get("data", [])
+        # dump json to file
+        with open('/code/cache/measurements_bat.jsonl', 'a', encoding='utf-8') as f:
+            if isinstance(api_measurement_list, list):
+                for entry in api_measurement_list:
+            # 3. Write each measurement as a single line
+                    f.write(json.dumps(entry) + '\n')
+            else:
+        # If it's a single object, just write it
+                f.write(json.dumps(api_measurement_list) + '\n')
+        battery_measurements = []
+        for api_measurement in api_measurement_list:
+            try:
+                ch_discharge_power = float(api_measurement["dataItemMap"]["ch_discharge_power"])
+                battery_soc = float(api_measurement["dataItemMap"]["battery_soc"]) 
+                # daily_energy_wh = float(api_measurement["dataItemMap"]["day_cap"])
+            except KeyError as missing_key:
+                self.logger.error(f"Key '{missing_key}' is missing from FusionSolarOpenAPI battery measurement. Skipping this device.")
+                continue
+            except ValueError as val_err:
+                self.logger.error(f"Failed to convert FusionSolarOpenAPI battery measurement record to float, out of bounds? Skipping this device. {val_err}")
+                continue
+            except TypeError as typ_err:
+                self.logger.warning(f"Failed to parse FusionSolarOpenAPI grid meter measurements, value None? This happens if a device is inactive or disabled. Skipping this device. {typ_err}")
+                continue
+
+            self.logger.debug(f"Metrics after transformations: battery_soc={battery_soc}, ch_discharge_power={ch_discharge_power}")
+
+            matching_device = next((dev for dev in self.device_list if dev.get("id") == api_measurement["devId"]), None)
+            matching_station = next((stat for stat in self.station_list if stat.get("stationCode") == matching_device["stationCode"]), None)
+            matching_conf = next((bat for bat in self.conf.fusionsolar_open_api_battery if bat.dev_id == str(api_measurement["devId"])), None) # TODO
+            
+            station_dn = matching_device.get("stationCode", "")
+            station_name = matching_station.get("stationName", "")
+            device_id = str(api_measurement.get("devId", ""))
+
+            device_dn = matching_device.get("devDn", "")
+            device_name = matching_device.get("devName", "")
+            device_model = matching_device.get("model", "")
+
+            # Populate the inverter KPI model without altering the original response.
+            api_measurement = FusionSolarBatteryMeasurement(
+                settings=matching_conf,
+                measurement_type="battery",
+                data_source="openapi_realkpi",
+                station_name=station_name,
+                station_dn=station_dn,
+                device_dn=device_dn,
+                device_name=device_name,
+                device_model=device_model,
+                device_id=device_id,
+                battery_soc=battery_soc,
+                ch_discharge_power=ch_discharge_power,
+            )
+
+            battery_measurements.append(api_measurement)
+
+        return battery_measurements
+
+    @rate_limit(max_calls=1, period=60)
     def fetch_fusionsolar_inverter_device_kpis(self) -> List[FusionSolarInverterMeasurement]:
         """
         Retrieve real-time KPIs from the FusionSolar OpenAPI.
@@ -86,7 +164,15 @@ class FetchFusionSolarOpenApi:
 
         response_json = self._fetch_fusionsolar_data_request(url, data)
         api_measurement_list = response_json.get("data", [])
-
+        # dump json to file
+        # with open('measurements_inv.jsonl', 'a', encoding='utf-8') as f:
+        #     if isinstance(api_measurement_list, list):
+        #         for entry in api_measurement_list:
+        #     # 3. Write each measurement as a single line
+        #             f.write(json.dumps(entry) + '\n')
+        #     else:
+        # # If it's a single object, just write it
+        #         f.write(json.dumps(api_measurement_list) + '\n')
         inverter_measurements = []
         for api_measurement in api_measurement_list:
             try:
@@ -152,12 +238,21 @@ class FetchFusionSolarOpenApi:
             self.update_device_list()
 
         url = f"{self.conf.fusionsolar_open_api_url}/thirdData/getDevRealKpi"
-        devices_str = ",".join(str(item["id"]) for item in self.device_list if "id" in item and "devTypeId" in item and item["devTypeId"] == 17)
-        data = {"devTypeId": 17, "devIds": devices_str}
+        devices_str = ",".join(str(item["id"]) for item in self.device_list if "id" in item and "devTypeId" in item and item["devTypeId"] == 47)
+        data = {"devTypeId": 47, "devIds": devices_str}
 
         response_json = self._fetch_fusionsolar_data_request(url, data)
         api_measurement_list = response_json.get("data", [])
-
+        # dump json to file
+        # with open('measurements.jsonl', 'a', encoding='utf-8') as f:
+        #     if isinstance(api_measurement_list, list):
+        #         for entry in api_measurement_list:
+        #     # 3. Write each measurement as a single line
+        #             f.write(json.dumps(entry) + '\n')
+        #     else:
+        # # If it's a single object, just write it
+        #         f.write(json.dumps(api_measurement_list) + '\n')
+     
         inverter_measurements = []
         for api_measurement in api_measurement_list:
             try:
@@ -182,7 +277,7 @@ class FetchFusionSolarOpenApi:
 
             matching_device = next((dev for dev in self.device_list if dev.get("id") == api_measurement["devId"]), None)
             matching_station = next((stat for stat in self.station_list if stat.get("stationCode") == matching_device["stationCode"]), None)
-            matching_conf = next((inv for inv in self.conf.fusionsolar_open_api_meters if inv.dev_id == str(api_measurement["devId"])), None)
+            matching_conf = next((inv for inv in self.conf.fusionsolar_open_api_meters if inv.dev_id == str(api_measurement["devId"])), None) 
 
             station_dn = matching_device.get("stationCode", "")
             station_name = matching_station.get("stationName", "")

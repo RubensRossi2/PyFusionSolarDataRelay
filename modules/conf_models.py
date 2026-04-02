@@ -36,6 +36,11 @@ class FusionSolarOpenApiMeterSettings(BaseMetricSettings):
     dev_id: str = Field(default="")
     output_mqtt: bool = Field(default=True)
 
+class FusionSolarOpenApiBatterySettings(BaseMetricSettings):
+    descriptive_name: str = Field(default="battery01")
+    dev_id: str = Field(default="")
+    output_mqtt: bool = Field(default=True)
+
 
 class KenterMeterSettings(BaseMetricSettings):
     descriptive_name: str = Field(default="transformer01")
@@ -78,6 +83,7 @@ class PyFusionSolarSettings(BaseSettings):
         description="Beware of API limits and throttling: https://support.huawei.com/enterprise/en/doc/EDOC1100379184/b71c4d05/flow-control-using-the-api-account#EN-US_TOPIC_0000001652426426",
     )
     fusionsolar_open_api_inverters: List[FusionSolarOpenApiInverterSettings] = Field(default=[])
+    fusionsolar_open_api_battery: List[FusionSolarOpenApiBatterySettings] = Field(default=[])
     fusionsolar_open_api_meters: List[FusionSolarOpenApiMeterSettings] = Field(default=[])
     fusionsolar_open_api_mqtt_for_discovered_dev: bool = Field(default=True, description="Write KPI's to MQTT for devices discovered over the API without a matching dev_id")
     fusionsolar_open_api_influxdb_for_discovered_dev: bool = Field(default=True, description="Write KPI's to InfluxDB for devices discovered over the API without a matching dev_id")
